@@ -1,0 +1,44 @@
+<!doctype html>
+<html ng-csp ng-app="whistle">
+    <head>
+        <meta charset="utf-8">
+        <title>HTTP Webserver</title>
+        <!-- build:css styles/app.css -->
+        <link rel="stylesheet" href="styles/bootstrap.min.css">
+        <link rel="stylesheet" href="styles/main.css">
+        <!-- endbuild -->
+        <script src="js/angular.min.js"></script>
+        <script src="js/app.js"></script>
+        <style>
+          #logger {
+            border: solid 1px #c6c6c6;
+            border-radius: 5px;
+            box-shadow: inset 0px 0px 5px #c6c6c6;
+            height: 120px;
+            overflow-y: auto;
+          }
+
+          select { 
+            display: block;
+          }
+        </style>
+    </head>
+    <body ng-controller="ProxyCtrl">
+      <div class="hero-unit">
+        <h1>HTTP Webserver</h1>
+         <p><span>proxy for local files</span>
+            <select ng-model="entry" ng-change="onEntryChange()" ng-options="entry.path for entry in locals">
+            </select>
+            <button class="btn btn-small" ng-click="onAddEntry()">Add</button>
+         </p>
+         <p>
+           <select id="hosts" ng-model="host" ng-options="h.address as h.address for h in hosts">
+           </select>
+           <input type="text" id="port" value="8888" ng-model="port"/><br />
+           <button id="start" class="btn btn-primary btn-large" ng-click="onStart()" ng-disabled="running">Start</button>
+           <button id="stop" class="btn btn-warning btn-large" ng-click="onStop()" ng-disabled="!running">Stop</button>
+         </p>
+      </div>
+      <pre id="logger" ng-bind-html="logger"></pre>
+    </body>
+</html>
