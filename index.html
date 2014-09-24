@@ -18,18 +18,20 @@
             overflow-y: auto;
           }
 
-          select { 
-            display: block;
+          .btn-entry {
+              float: right;
+              margin-right: 9px;
           }
         </style>
     </head>
     <body ng-controller="ProxyCtrl">
       <div class="hero-unit">
         <h1>HTTP Webserver</h1>
-         <p><span>proxy for local files</span>
-            <select ng-model="entry" ng-change="onEntryChange()" ng-options="entry.path for entry in locals">
+         <p><span>proxy for local files</span>{{entry}}
+            <select ng-model="entry" ng-change="onEntryChange()" ng-options="path as path for (path, id) in entries">
             </select>
-            <button class="btn btn-small" ng-click="onAddEntry()">Add</button>
+            <button class="btn btn-small btn-entry btn-warning" ng-click="onDelEntry()">Del</button>
+            <button class="btn btn-small btn-entry btn-info" ng-click="onAddEntry()">Add</button>
          </p>
          <p>
            <select id="hosts" ng-model="host" ng-options="h.address as h.address for h in hosts">

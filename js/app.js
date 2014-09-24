@@ -3,24 +3,11 @@ services.factory("fs", ["$q", function($q) {
   var fs = chrome.fileSystem,
       local = chrome.storage.local;
   
-  function _getEntryId() {
+  function _getEntries() {
     var delay = $q.defer();
 
-    // entry id is saved so no need to pick up folder every time starting our proxy server
-    local.get("entry_id", function(data) {
-      if (data.entry_id)
-        delay.resolve(data.entry_id);
-      else
-        fs.chooseEntry({type: 'openDirectory'}, function(entry) {
-          if (!entry) {
-            delay.reject('Unable to get directory entry');
-            return;
-          }
-
-          var entryId = fs.retainEntry(entry);
-          local.set({entry_id: entryId});
-          delay.resolve(entryId);
-        });
+    local.get(function(data) {
+      delay.resolve(data.entries);
     });
     
       return delay.promise;
@@ -86,19 +73,27 @@ services.factory("fs", ["$q", function($q) {
       
       local.get(function(data) {
         var entries = data.entries || {};
-        entries[entry.fullPath] = fs.retainEntry(entry);
+        var id = fs.retainEntry(entry);
+        entries[entry.fullPath] = id;
         local.set({'entries': entries});
-        delay.resolve(entries[entry.fullPath]);
+        delay.resolve({id: id, path: entry.fullPath});
       })
     });
     
     return delay.promise;
   }
   
+  function _deleteEntry(entries, entry) {
+    delete entries[entry.path];
+    local.set({'entries': entries});
+    console.log(entries, entry)
+  }
+  
   return {
-    getEntryId: _getEntryId,
+    getEntries: _getEntries,
     getFilesMap: _getFilesMap,
-    chooseEntry: _chooseEntry
+    chooseEntry: _chooseEntry,
+    deleteEntry: _deleteEntry
   };
 }]);
 
@@ -291,6 +286,7 @@ app.config(function($sceProvider) {
   $sceProvider.enabled(false);
 });
 app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function($scope, $sce, $timeout, fs, svr) {
+    // about server
     svr.getNetworkList().then(function(intfs) {
       $scope.hosts = intfs || [];
       $scope.hosts.splice(0, 0, {address: "127.0.0.1"});
@@ -310,6 +306,7 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
       $scope.running = false;
     }
     
+    // about logger
     $scope.logger = "";
     $scope.$on('svr:accept', function(event, data) {
       $scope.logger += "<span style='color: green;'>" + data + "</span>\n";
@@ -318,15 +315,24 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
       $scope.logger += "<span style='color: red;'>" + data + "</span>\n";
     });
     
-    $scope.locals = [{id: 'abc', path: '/webserver'}];
-    $scope.entry = $scope.locals[0];
+    // about entries
+    fs.getEntries().then(function(entries) {
+      $scope.entries = entries;
+    });
     
     $scope.onEntryChange = function() {
-      
+      console.log($scope.entry)
     }
     $scope.onAddEntry = function() {
       fs.chooseEntry().then(function(entry) {
+        $scope.entries[entry.path] = entry;
+        $scope.entry = entry.path;
         console.log(entry)
       })
+    }
+    $scope.onDelEntry = function() {
+      var path = $scope.entry,
+          id = $scope.entries[path];
+      fs.deleteEntry($scope.entries, {id: id, path: path});
     }
 }]);
