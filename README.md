@@ -1,5 +1,7 @@
-<a target="_blank" href="https://chrome.google.com/webstore/detail/hflhcpmgeolmjlbmdicgkjedjmkoocbe">![Try it now in CWS](https://raw.github.com/GoogleChrome/chrome-app-samples/master/tryitnowbutton.png "Click here to install this sample from the Chrome Web Store")</a>
+whistle-proxy
+=============
 
+This is a proxy server running as a chrome pacakged app. It is based on sample webserver which demonstration of Chrome's new networking stack. I write this app just for convience as a proxy server serving for local files. More powerfull cooperating with another project named __whistle__ as a chrome extension. Thanks to Chrome devtool's network mapping utility, chrome devtool's Sources pannel can be used as an javascript editor, editing online static files such as javascripts and stylesheets in time.
 
 Web Server
 ==========
@@ -82,5 +84,5 @@ The `listen` and `accept` API are currently only available in Canary channel of 
 "Experimental extensions" mode (set via chrome://flags).
      
 ## Screenshot
-![screenshot](/samples/webserver/assets/screenshot_1280_800.png)
+![screenshot](/assets/screenshot_1280_800.png)
 
