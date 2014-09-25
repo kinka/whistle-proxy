@@ -3,6 +3,12 @@ whistle-proxy
 
 This is a proxy server running as a chrome pacakged app. It is based on sample webserver which demonstration of Chrome's new networking stack. I write this app just for convience as a proxy server serving for local files. More powerfull cooperating with another project named __whistle__ as a chrome extension. Thanks to Chrome devtool's network mapping utility, chrome devtool's Sources pannel can be used as an javascript editor, editing online static files such as javascripts and stylesheets in time.
 
+ToDo
+----
+	1. Multiple workspace support;
+	
+    2. Fittable icons;
+
 Web Server
 ==========
 
@@ -85,4 +91,3 @@ The `listen` and `accept` API are currently only available in Canary channel of 
      
 ## Screenshot
 ![screenshot](/assets/screenshot_1280_800.png)
-

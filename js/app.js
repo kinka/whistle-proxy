@@ -98,7 +98,8 @@ services.factory("fs", ["$q", function($q) {
 }]);
 
 services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) {
-  var socket = chrome.socket;
+  var socket = chrome.socket,
+      storage = chrome.storage.local;
   var socketInfo;
   var filesMap = {};
   var dir = "";
@@ -221,23 +222,30 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
     });
   }
   
-  function initLocalFiles(cb) {
-    fs.getEntryId().then(function(id) {
-      return id;
-    }).then(function(id) {
-      return fs.getFilesMap(id);
-    }).then(function(_filesMap) {
+  function initLocalFiles(entryId) {
+    var delay = $q.defer();
+    
+    fs.getFilesMap(entryId).then(function(_filesMap) {
       dir = _filesMap['/'].fullPath;
       delete _filesMap['/'];
       filesMap = _filesMap;
       
-      cb && cb();
+      delay.resolve();
     });
+    
+    return delay.promise;
   }
   
-  function start(_host, _port) {
+  function start(entryId, _host, _port) {
     host = _host || "127.0.0.1";
     port = _port || 8888;
+    
+    if (!entryId) {
+      console.log("no local selected");
+      return;
+    }
+    
+    storage.set({'last_entry': entryId});
     
     var delay = $q.defer();
     
@@ -247,7 +255,7 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
       socket.listen(socketInfo.socketId, host, parseInt(port), 50, function(result) {
         console.log(host + ":" + port + " LISTENING:", result);
         
-        initLocalFiles(function() {
+        initLocalFiles(entryId).then(function() {
           socket.accept(socketInfo.socketId, onAccept);
         
           delay.resolve({'result': result, 'root': dir, 'socketInfo': _socketInfo});
@@ -274,10 +282,19 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
     return delay.promise;
   }
   
+  function getLastEntry() {
+    var delay = $q.defer();
+    storage.get(function(data) {
+      delay.resolve(data.last_entry);
+    });
+    return delay.promise;
+  }
+  
   return {
     start: start,
     stop: stop,
-    getNetworkList: getNetworkList
+    getNetworkList: getNetworkList,
+    getLastEntry: getLastEntry
   }
 }]);
 
@@ -295,7 +312,7 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
     });
     
     $scope.onStart = function() {
-      svr.start($scope.host, $scope.port).then(function(data) {
+      svr.start($scope.entries[$scope.entry], $scope.host, $scope.port).then(function(data) {
         $scope.root = data.root;
         $scope.running = true;
       })
@@ -318,6 +335,11 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
     // about entries
     fs.getEntries().then(function(entries) {
       $scope.entries = entries;
+      
+      svr.getLastEntry().then(function(lastEntry) {
+        if (!lastEntry) return;
+        $scope.entry = "/" + lastEntry.substr(lastEntry.indexOf(":")+1);
+      });
     });
     
     $scope.onEntryChange = function() {

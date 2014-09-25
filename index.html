@@ -26,8 +26,8 @@
     </head>
     <body ng-controller="ProxyCtrl">
       <div class="hero-unit">
-        <h1>HTTP Webserver</h1>
-         <p><span>proxy for local files</span>{{entry}}
+        <h1>Whistle Proxy</h1>
+         <p><span>serving you locally</span>
             <select ng-model="entry" ng-change="onEntryChange()" ng-options="path as path for (path, id) in entries">
             </select>
             <button class="btn btn-small btn-entry btn-warning" ng-click="onDelEntry()">Del</button>
