@@ -13,9 +13,13 @@
       "scripts": ["main.js"]
     }
   },
+  "sockets": {
+     "tcpServer": {"listen":""}
+  },
   "permissions": [
     {"socket":["tcp-connect", "tcp-listen"]},
     {"fileSystem": ["write", "retainEntries", "directory"]},
-    "storage"
+    "storage",
+    "system.network"
    ]
 }

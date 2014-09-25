@@ -99,12 +99,15 @@ services.factory("fs", ["$q", function($q) {
 
 services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) {
   var socket = chrome.socket,
+      tcpServer = chrome.sockets.tcpServer,
+      tcp = chrome.sockets.tcp,
       storage = chrome.storage.local;
-  var socketInfo;
+  var svrSocketId;
   var filesMap = {};
   var dir = "";
   var host = "127.0.0.1";
   var port = "8888";
+  var isListening = true;
   
   function stringToUint8Array(string) {
     var buffer = new ArrayBuffer(string.length);
@@ -124,104 +127,6 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
     return str;
   }
   
-  function writeErrorResponse(socketId, errorCode, keepAlive) {
-    var file = { size: 0 };
-    console.info("writeErrorResponse:: begin... ");
-    console.info("writeErrorResponse:: file = " + file);
-    var contentType = "text/plain"; //(file.type === "") ? "text/plain" : file.type;
-    var contentLength = file.size;
-    var header = stringToUint8Array("HTTP/1.0 " + errorCode + " Not Found\nContent-length: " + file.size + "\nContent-type:" + contentType + ( keepAlive ? "\nConnection: keep-alive" : "") + "\n\n");
-    console.info("writeErrorResponse:: Done setting header...");
-    var outputBuffer = new ArrayBuffer(header.byteLength + file.size);
-    var view = new Uint8Array(outputBuffer)
-    view.set(header, 0);
-    console.info("writeErrorResponse:: Done setting view...");
-    socket.write(socketId, outputBuffer, function(writeInfo) {
-      if (keepAlive) {
-        readFromSocket(socketId);
-      } else {
-        socket.destroy(socketId);
-        socket.accept(socketInfo.socketId, onAccept);
-      }
-    });
-    console.info("writeErrorResponse::filereader:: end onload...");
-
-    console.info("writeErrorResponse:: end...");
-  }
-  
-  function write200Response(socketId, file, keepAlive) {
-    var contentType = (file.type === "") ? "text/plain" : file.type;
-    var contentLength = file.size;
-    var header = stringToUint8Array("HTTP/1.0 200 OK\nContent-length: " + file.size + "\nContent-type:" + contentType + ( keepAlive ? "\nConnection: keep-alive" : "") + "\n\n");
-    var outputBuffer = new ArrayBuffer(header.byteLength + file.size);
-    var view = new Uint8Array(outputBuffer)
-    view.set(header, 0);
-
-    var fileReader = new FileReader();
-    fileReader.onload = function(e) {
-       view.set(new Uint8Array(e.target.result), header.byteLength);
-       socket.write(socketId, outputBuffer, function(writeInfo) {
-         if (keepAlive) {
-           readFromSocket(socketId);
-         } else {
-           socket.destroy(socketId);
-           socket.accept(socketInfo.socketId, onAccept);
-         }
-      });
-    };
-
-    fileReader.readAsArrayBuffer(file);
-  }
-  
-  function onAccept(acceptInfo) {
-//     console.log("ACCEPT", acceptInfo)
-    readFromSocket(acceptInfo.socketId);
-  }
-  
-  function readFromSocket(socketId) {
-    //  Read in the data
-    socket.read(socketId, function(readInfo) {
-      
-      // Parse the request.
-      var data = arrayBufferToString(readInfo.data);
-      if(data.indexOf("GET ") == 0) {
-        var keepAlive = false;
-        if (data.indexOf("Connection: keep-alive") != -1) {
-          keepAlive = true;
-        }
-
-        // we can only deal with GET requests
-        var uriEnd =  data.indexOf(" ", 4);
-        if(uriEnd < 0) { /* throw a wobbler */ return; }
-        var uri = data.substring(4, uriEnd).toLocaleLowerCase();
-        // strip query string
-        var q = uri.indexOf("?");
-        if (q != -1) {
-          uri = uri.substring(0, q);
-        }
-        var file = filesMap[uri];
-        if(!!file == false) {
-          console.warn("File does not exist..." + uri);
-          
-          $rootScope.$broadcast('svr:error', "GET 404 " + uri);
-          $rootScope.$apply();
-          
-          writeErrorResponse(socketId, 404, keepAlive);
-          return;
-        }
-        
-        $rootScope.$broadcast('svr:accept', "GET 200 " + uri);
-        $rootScope.$apply();
-        
-        write200Response(socketId, file, keepAlive);
-      }
-      else {
-        // Throw an error
-        socket.destroy(socketId);
-      }
-    });
-  }
-  
   function initLocalFiles(entryId) {
     var delay = $q.defer();
     
@@ -236,6 +141,24 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
     return delay.promise;
   }
   
+  function onAccept(info) {
+    if (svrSocketId != info.socketId)
+      return;
+    console.log(info)
+    tcp.sockets.tcp.getInfo(info.clientSocketId, function(socketInfo) {
+      console.log(socketInfo)
+    })
+    tcp.onReceive.addListener(onReceive);
+    tcp.send(info.clientSocketId, stringToUint8Array("hello"), function() {
+      tcp.close(info.clientSocketId);
+    })
+  }
+  function onReceive(info) {
+    console.log('onReceive', info)
+    var recv = arrayBufferToString(info.data);
+    console.log(recv)
+  }
+  
   function start(entryId, _host, _port) {
     host = _host || "127.0.0.1";
     port = _port || 8888;
@@ -246,28 +169,30 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
     }
     
     storage.set({'last_entry': entryId});
+    initLocalFiles(entryId);
     
     var delay = $q.defer();
-    
-    socket.create("tcp", {}, function(_socketInfo) {
-      socketInfo = _socketInfo; // global cache
+
+    tcpServer.create({}, function(socketInfo) {
+      svrSocketId = socketInfo.socketId;
       
-      socket.listen(socketInfo.socketId, host, parseInt(port), 50, function(result) {
-        console.log(host + ":" + port + " LISTENING:", result);
-        
-        initLocalFiles(entryId).then(function() {
-          socket.accept(socketInfo.socketId, onAccept);
-        
-          delay.resolve({'result': result, 'root': dir, 'socketInfo': _socketInfo});
-        })
+      tcpServer.onAccept.addListener(onAccept);
+      
+      tcpServer.listen(svrSocketId, host, parseInt(port), 50, function(result) {
+        console.log(result, svrSocketId)
+        isListening = true;
+        delay.resolve({'result': result, 'root': dir, 'socketInfo': socketInfo});  
       });
-    })
+    });
     
     return delay.promise;
   }
   
   function stop() {
-    socket.destroy(socketInfo.socketId);
+    isListening = false;
+    tcpServer.onAccept.removeListener(onAccept);
+    tcpServer.close(svrSocketId);
+    svrSocketId = 0;
   }
   
   function getNetworkList() {
