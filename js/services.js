@@ -181,7 +181,7 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
       var keepAlive = false;
       if (lower.indexOf('connection: keep-alive') != -1)
         keepAlive = true;
-        
+
       var uriEnd = data.indexOf(" ", 4);
       if (uriEnd < 0) return false;
       var uri = lower.substring(4, uriEnd);
@@ -196,7 +196,7 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
           writeErrorResponse(socketId, 404, keepAlive);
           return;
       }
-      
+
       $rootScope.$broadcast('svr:accept', "GET 200 " + uri);
       
       write200Response(socketId, file, keepAlive);
@@ -223,14 +223,20 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
     var fileReader = new FileReader();
     fileReader.onload = function(e) {
         var content = e.target.result;
-        stringToUint8Array(headerStr+content).then(function(buffer) {
-            tcp.send(socketId, buffer, angular.noop);
+        stringToUint8Array(headerStr).then(function(header) {
+            /*var view = new Uint8Array(header.byteLength+content.byteLength);
+            view.set(new Uint8Array(header), 0);
+            view.set(new Uint8Array(content), header.byteLength);
+            console.log('view', view.length)
+            tcp.send(socketId, view.buffer, angular.noop);*/
+            tcp.send(socketId, header, angular.noop);
+            tcp.send(socketId, content, angular.noop);
             if (!keepAlive)
                 tcp.close(socketId);
        });
     };
 
-    fileReader.readAsText(file);
+    fileReader.readAsArrayBuffer(file);
   }
   
   function start(entryId, _host, _port) {
