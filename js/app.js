@@ -11,19 +11,22 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
       $scope.port = "8888";
     });
     
+    var servers = {};
+    var server;
     $scope.onStart = function() {
-      svr.start($scope.entries[$scope.entry], $scope.host, $scope.port).then(function(data) {
-        $scope.root = data.root;
-        $scope.running = true;
+      server = servers[$scope.host+':'+$scope.port] = svr.getInstance();
+      server.start($scope.entries[$scope.entry], $scope.host, $scope.port).then(function(data) {
+        $scope.running = server.isListening;
       })
     }
     
     $scope.onStop = function() {
-      svr.stop();
-      $scope.running = false;
+      server.stop();
+      $scope.running = server.isListening;
     }
     
     // about logger
+    // todo: scrollByLines
     $scope.logger = "";
     $scope.$on('svr:accept', function(event, data) {
       $scope.logger += "<span style='color: green;'>" + data + "</span>\n";
@@ -35,16 +38,24 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
     // about entries
     fs.getEntries().then(function(entries) {
       $scope.entries = entries;
-      
-      svr.getLastEntry().then(function(lastEntry) {
+      $scope.onServerChange();
+    });
+    
+    $scope.onServerChange = function() {
+      server = servers[$scope.host+':'+$scope.port] || {isListening: false};
+      $scope.running = server.isListening;
+        
+      svr.getLastEntry($scope.host, $scope.port).then(function(lastEntry) {
         if (!lastEntry) return;
+        
         $scope.entry = "/" + lastEntry.substr(lastEntry.indexOf(":")+1);
       });
-    });
+    }
     
     $scope.onEntryChange = function() {
       console.log($scope.entry)
     }
+    
     $scope.onAddEntry = function() {
       fs.chooseEntry().then(function(entry) {
         $scope.entries[entry.path] = entry;

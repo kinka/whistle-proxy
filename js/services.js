@@ -106,13 +106,26 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
       tcpServer = chrome.sockets.tcpServer,
       tcp = chrome.sockets.tcp,
       storage = chrome.storage.local;
-  var svrSocketId;
-  var filesMap = {};
-  var dir = "";
-  var host = "127.0.0.1";
-  var port = "8888";
-  var isListening = true;
-  var openSockests = [];
+  
+  function getNetworkList() {
+    var delay = $q.defer();
+    
+    socket.getNetworkList(function(interfaces) {
+      delay.resolve(interfaces.filter(function(intf) {
+        return intf.prefixLength == 24;
+      }));
+    });
+    
+    return delay.promise;
+  }
+  
+  function getLastEntry(host, port) {
+    var delay = $q.defer();
+    storage.get(function(data) {
+      delay.resolve(data[host+':'+port]);
+    });
+    return delay.promise;
+  }
   
   function stringToUint8Array(str, cb) {
     var delay = $q.defer();
@@ -143,38 +156,17 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
   function initLocalFiles(entryId) {
     var delay = $q.defer();
     
-    fs.getFilesMap(entryId).then(function(_filesMap) {
-      dir = _filesMap['/'].fullPath;
-      delete _filesMap['/'];
-      filesMap = _filesMap;
+    fs.getFilesMap(entryId).then(function(filesMap) {
+      var path = filesMap['/'].fullPath;
+      delete filesMap['/'];
 
-      delay.resolve();
+      delay.resolve({path: path, id: entryId, filesMap: filesMap});
     });
     
     return delay.promise;
   }
   
-  function onAccept(info) {
-    if (svrSocketId != info.socketId)
-      return;
-    console.log(info.socketId, info.clientSocketId)
-    tcp.getInfo(info.clientSocketId, function(socketInfo) {
-      tcp.setPaused(info.clientSocketId, false);
-    });
-    if (!onReceive.set) {
-        onReceive.set = true;
-        tcp.onReceive.addListener(onReceive);
-    }
-    openSockests.push(info.clientSocketId);
-  }
-  function onReceive(info) {
-    arrayBufferToString(info.data).then(function(recv) {
-        if (false === handleHTTP(recv, info.socketId)) { // not http GET request, destroy it
-            tcp.close(info.socketId);
-        }
-    });
-  }
-  function handleHTTP(data, socketId) {
+  function handleHTTP(data, socketId, filesMap) {
       if (data.indexOf('GET ') != 0)
         return false;
       var lower = data.toLocaleLowerCase();
@@ -239,67 +231,100 @@ services.factory("svr", ["$q", "$rootScope", "fs", function($q, $rootScope, fs) 
     fileReader.readAsArrayBuffer(file);
   }
   
+  function onAccept(info) {
+    if (this.svrSocketId != info.socketId)
+      return;
+    console.log('accept', info.socketId, info.clientSocketId)
+    tcp.getInfo(info.clientSocketId, function(socketInfo) {
+      tcp.setPaused(info.clientSocketId, false);
+    });
+    if (!this.setReceive) {
+        this.setReceive = true;
+        tcp.onReceive.addListener(onReceive.bind(this));
+    }
+    this.openSockests.push(info.clientSocketId);
+  }
+  
+  function onReceive(info) {
+    if (this.openSockests.indexOf(info.socketId) == -1)
+      return;
+      
+    var me = this;
+    arrayBufferToString(info.data).then(function(recv) {
+        if (false === handleHTTP(recv, info.socketId, me.filesMap)) { // not http GET request, destroy it
+            tcp.close(info.socketId);
+        }
+    });
+  }
+  
   function start(entryId, _host, _port) {
-    host = _host || "127.0.0.1";
-    port = _port || 8888;
+    this.host = _host || "127.0.0.1";
+    this.port = _port || 8888;
     
     if (!entryId) {
       console.log("no local selected");
       return;
     }
     
-    storage.set({'last_entry': entryId});
-    initLocalFiles(entryId);
+    var o = {};
+    o[this.host+':'+this.port] = entryId;
+    storage.set(o);
     
+    var me = this;
     var delay = $q.defer();
-
-    tcpServer.create({}, function(socketInfo) {
-      svrSocketId = socketInfo.socketId;
-      
-      tcpServer.onAccept.addListener(onAccept);
-      
-      tcpServer.listen(svrSocketId, host, parseInt(port), 1, function(result) {
-        console.log(result, svrSocketId)
-        isListening = true;
-        delay.resolve({'result': result, 'root': dir, 'socketInfo': socketInfo});  
-      });
-    });
     
+    initLocalFiles(entryId).then(function(entry) {
+        me.dir = entry.path;
+        me.filesMap = entry.filesMap;
+
+        tcpServer.create({}, function(socketInfo) {
+          me.svrSocketId = socketInfo.socketId;
+
+          tcpServer.onAccept.addListener(onAccept.bind(me));
+
+          tcpServer.listen(me.svrSocketId, me.host, parseInt(me.port), 1, function(result) {
+            console.log(result, me.svrSocketId)
+            me.isListening = true;
+            delay.resolve({'result': result, 'root': me.dir, 'socketInfo': socketInfo});  
+          });
+        });   
+    });
+
     return delay.promise;
   }
   
   function stop() {
-    openSockests.forEach(function(socketId) {
+    this.openSockests.forEach(function(socketId) {
         tcp.close(socketId);
     });
-    openSockests = [];
-    isListening = false;
-    tcpServer.onAccept.removeListener(onAccept);
-    tcpServer.close(svrSocketId);
-    svrSocketId = 0;
+    this.openSockests = [];
+    this.isListening = false;
+    
+    tcpServer.close(this.svrSocketId);
+    this.svrSocketId = 0;
+    
+    tcpServer.onAccept.removeListener(onAccept.bind(this));
+    tcp.onReceive.removeListener(onReceive.bind(this));
   }
   
-  function getNetworkList() {
-    var delay = $q.defer();
-    
-    socket.getNetworkList(function(interfaces) {
-      delay.resolve(interfaces.filter(function(intf) {
-        return intf.prefixLength == 24;
-      }));
-    });
-    
-    return delay.promise;
+  function TCPServer() {
+      this.svrSocketId = 0;
+      this.filesMap = {};
+      this.dir = "";
+      this.host = "127.0.0.1";
+      this.port = "8888";
+      this.isListening = true;
+      this.openSockests = [];
   }
+  TCPServer.prototype.start = start;
+  TCPServer.prototype.stop = stop;
   
-  function getLastEntry() {
-    var delay = $q.defer();
-    storage.get(function(data) {
-      delay.resolve(data.last_entry);
-    });
-    return delay.promise;
+  function getInstance() {
+      return new TCPServer();
   }
   
   return {
+    getInstance: getInstance,
     start: start,
     stop: stop,
     getNetworkList: getNetworkList,
