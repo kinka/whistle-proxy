@@ -69,7 +69,7 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
     
     $scope.onAddEntry = function() {
       fs.chooseEntry().then(function(entry) {
-        $scope.entries[entry.path] = entry;
+        $scope.entries[entry.path] = entry.id;
         $scope.entry = entry.path;
         console.log(entry)
       })
