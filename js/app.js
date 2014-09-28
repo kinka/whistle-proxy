@@ -2,6 +2,27 @@ var app = angular.module('whistle', ["whistle.services"]);
 app.config(function($sceProvider) {
   $sceProvider.enabled(false);
 });
+app.directive('whLogger', [function() {
+  return {
+    link: function(scope, ele, attrs) {
+      scope.logger = "";
+      scope.$on('svr:accept', function(event, data) {
+        scope.logger += "<span style='color: green;'>" + data + "</span>\n";
+      });
+      scope.$on('svr:error', function(event, data) {
+        scope.logger += "<span style='color: red;'>" + data + "</span>\n";
+      });
+
+      var tid = 0;
+      scope.$watch("logger", function(value) {
+        clearTimeout(tid);
+        tid = setTimeout(function() {
+          ele[0].scrollTop = ele[0].scrollHeight;
+        }, 100);
+      })
+    }
+  };
+}]);
 app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function($scope, $sce, $timeout, fs, svr) {
     // about server
     svr.getNetworkList().then(function(intfs) {
@@ -24,16 +45,6 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
       server.stop();
       $scope.running = server.isListening;
     }
-    
-    // about logger
-    // todo: scrollByLines
-    $scope.logger = "";
-    $scope.$on('svr:accept', function(event, data) {
-      $scope.logger += "<span style='color: green;'>" + data + "</span>\n";
-    });
-    $scope.$on('svr:error', function(event, data) {
-      $scope.logger += "<span style='color: red;'>" + data + "</span>\n";
-    });
     
     // about entries
     fs.getEntries().then(function(entries) {
