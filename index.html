@@ -18,10 +18,19 @@
             height: 120px;
             overflow-y: auto;
           }
-
+          .hero-unit {
+              padding-bottom: 30px;
+          }
           .btn-entry {
               float: right;
-              margin-right: 9px;
+              margin-right: 12px;
+          }
+          #host {
+              float: left;
+          }
+          #port {
+            width: 76px;
+            margin-left: 24px;
           }
         </style>
     </head>
@@ -35,9 +44,12 @@
             <button class="btn btn-small btn-entry btn-info" ng-click="onAddEntry()">Add</button>
          </p>
          <p>
-           <select id="hosts" ng-change="onServerChange()" ng-model="host" ng-options="h.address as h.address for h in hosts">
+           <select id="hosts" ng-change="onServerChange('host')" ng-model="host" ng-options="h.address as h.address for h in hosts">
            </select>
-           <input type="text" id="port" autocomplete="on" value="8888" ng-change="onServerChange()" ng-model="port"/><br />
+           <input type="text" id="port" value="8888" ng-change="onServerChange('port')" ng-model="port"/><br />
+           <select ng-model="server" ng-change="onServerChange('both')" ng-options="k for (k, v) in servers"></select>
+         </p>
+         <p>
            <button id="start" class="btn btn-primary btn-large" ng-click="onStart()" ng-disabled="running">Start</button>
            <button id="stop" class="btn btn-warning btn-large" ng-click="onStop()" ng-disabled="!running">Stop</button>
          </p>

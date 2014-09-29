@@ -32,19 +32,25 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
       $scope.port = "8888";
     });
     
-    var servers = {};
-    var server;
+    $scope.servers = {};
+    $scope.server = "";
     $scope.onStart = function() {
-      server = servers[$scope.host+':'+$scope.port] = svr.getInstance();
-      server.start($scope.entries[$scope.entry], $scope.host, $scope.port).then(function(data) {
-        $scope.running = server.isListening;
+      $scope.server = $scope.servers[$scope.host+':'+$scope.port] = svr.getInstance();
+      $scope.server.start($scope.entries[$scope.entry], $scope.host, $scope.port).then(function(data) {
+        $scope.running = $scope.server.isListening;
       })
     }
     
     $scope.onStop = function() {
-      server.stop();
-      $scope.running = server.isListening;
+      $scope.server.stop();
+      $scope.running = $scope.server.isListening;
     }
+    
+    // clean ups
+    $scope.$on('$destroy', function() {
+      for (var key in $scope.servers)
+        $scope.servers[key].stop();
+    });
     
     // about entries
     fs.getEntries().then(function(entries) {
@@ -52,9 +58,15 @@ app.controller('ProxyCtrl', ['$scope', '$sce', '$timeout', 'fs', 'svr', function
       $scope.onServerChange();
     });
     
-    $scope.onServerChange = function() {
-      server = servers[$scope.host+':'+$scope.port] || {isListening: false};
-      $scope.running = server.isListening;
+    $scope.onServerChange = function(type) {
+      if (type == 'both') {
+        $scope.host = $scope.server.host;
+        $scope.port = $scope.server.port;
+      } else {
+        $scope.server = $scope.servers[$scope.host+':'+$scope.port] || {isListening: false};
+      }
+      
+      $scope.running = $scope.server.isListening;
         
       svr.getLastEntry($scope.host, $scope.port).then(function(lastEntry) {
         if (!lastEntry) return;
