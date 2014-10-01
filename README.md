@@ -1,93 +1,18 @@
-whistle-proxy
+Whistle-Proxy
 =============
 
-This is a proxy server running as a chrome pacakged app. It is based on sample webserver which demonstration of Chrome's new networking stack. I write this app just for convience as a proxy server serving for local files. More powerfull cooperating with another project named __whistle__ as a chrome extension. Thanks to Chrome devtool's network mapping utility, chrome devtool's Sources pannel can be used as an javascript editor, editing online static files such as javascripts and stylesheets in time.
-
-ToDo
-----
-	1. Multiple workspace support;
-	
-    2. Fittable icons;
-
-Web Server
-==========
-
-This sample is a demonstration of Chrome's new networking stack.  Chrome now has the ability to 
-listen on a tcp port AND to accept.
+This is a proxy server running as a chrome pacakged app. It is based on sample webserver which demonstration of Chrome's new networking stack. I write this app just for convience as a proxy server serving for local files. More powerfull cooperating with the chrome extension [whistle](https://github.com/Kinka/whistle). Thanks to Chrome devtool's network mapping utility, chrome devtool's Sources pannel can be used as an javascript editor, editing online static files such as javascripts and stylesheets in time.
+You can download it [here](/assets/whistle-proxy.crx).
 
 How it works
-------------
+-------------
+Firstly, add your local workspace by clicking on the __Add__ button, and choose your directory. Secondly, choose your network interface such as 127.0.0.1, and any valid port(8888 for example). Lastly, click __start__, without exception you can access your local resources by url http://127.0.0.1:8888/my/resource.js.
 
-Create a socket and convert it to a server socket.
+Why I do this
+-------------
+You may say that nodejs or python can easily do this. I think using nodejs or python still needs some tackling.My ubuntu just has no nodejs installed...So many module dependencies, I don't like that.Aslo in many cases, having a chrome browser installed is far more convient.
 
-    socket.create("tcp", {}, function(_socketInfo) {
-      socketInfo = _socketInfo;  // Cache globally [eek]
-      socket.listen(socketInfo.socketId, "127.0.0.1", 8080, 20, function(result) {
-        //Accept the first response
-        socket.accept(socketInfo.socketId, onAccept);
-      });
-    });
+-------------
+Any suggestion is welcome, thanks. [kinkabrain@gmail.com](mailto:kinkabrain@gmail.com).
 
-Create an onAccept handler that is triggered for an incomming request.
-
-    var onAccept = function(acceptInfo) {
-      // This is a request that the system is processing. 
-      // Read the data.
-      socket.read(acceptInfo.socketId, function(readInfo) {
-        // Parse the request.
-        var data = arrayBufferToString(readInfo.data);
-        // We only want to handle get requests
-        if(data.indexOf("GET ") == 0) {
-          // we can only deal with GET requests
-          var uriEnd =  data.indexOf(" ", 4);
-          if(uriEnd < 0) { /* throw a wobbler */ return; }
-          var uri = data.substring(4, uriEnd);
-          var file = filesMap[uri];  // pick out the file we want to server
-          if(!!file == false) { /* File does not exist */ return; }
-          
-          write200Response(acceptInfo.socketId, file);
-        }
-        else {
-          // Throw an error
-          socket.destroy(acceptInfo.socketId); 
-          // We need to say that we can accept another incoming request.
-          socket.accept(socketInfo.socketId, onAccept);
-        }
-      }); 
-    };
-
-Write the response back to the client.
-
-    var write200Response = function(socketId, file) {
-      var contentType = (file.type === "") ? "text/plain" : file.type;
-      var contentLength = file.size;
-      // Create an ArrayBuffer for the HTTP response.
-      var header = stringToUint8Array("HTTP/1.0 200 OK\nContent-length: " + file.size + "\nContent-type:" + contentType + "\n\n");
-      var outputBuffer = new ArrayBuffer(header.byteLength + file.size);
-      var view = new Uint8Array(outputBuffer)
-      view.set(header, 0);
-
-      // Read the file from the filesystem.
-      var fileReader = new FileReader();
-      fileReader.onload = function(e) {
-        view.set(new Uint8Array(e.target.result), header.byteLength); 
-        // Write it out to the client that made the request
-        socket.write(socketId, outputBuffer, function(writeInfo) {
-           // Kill the client socket
-           socket.destroy(socketId);
-           // We need to say that we can accept another incoming request.
-           socket.accept(socketInfo.socketId, onAccept);
-        });
-      };
-
-      fileReader.readAsArrayBuffer(file);
-    };
-
-Caveats
--------
-
-The `listen` and `accept` API are currently only available in Canary channel of Chrome and currently only available in 
-"Experimental extensions" mode (set via chrome://flags).
-     
-## Screenshot
-![screenshot](/assets/screenshot_1280_800.png)
+![screenshot](/assets/screenshot.png)
